@@ -1,0 +1,47 @@
+version: 2
+
+project_name: cclayer
+
+builds:
+  - main: .
+    binary: cclayer
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X github.com/zhaojiannet/cclayer/internal/cli.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+
+homebrew_casks:
+  - repository:
+      owner: zhaojiannet
+      name: homebrew-tap
+      # the workflow token cannot write to another repository
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/zhaojiannet/cclayer
+    description: "Sync Claude Code config across machines: CLAUDE.md, skills, hooks, settings.json, plugins and MCP servers, with per-team git identities and rules"
+    # The binary is not signed or notarized; drop the quarantine bit so macOS
+    # does not refuse to run it. Written as postflight_steps by hand: the
+    # postflight block GoReleaser generates from hooks is deprecated in
+    # Homebrew.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/cclayer"]
+        end
+      end

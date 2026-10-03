@@ -1,0 +1,17 @@
+# Go build output
+/dist/
+/cclayer
+/cclayer.exe
+
+# compose
+.env
+
+.DS_Store
+
+# private design notes, kept out of the public repository
+/docs/design.md
+
+# e2e process files (profile, plan, reports, raw runs) stay local; the Go tests are committed
+/e2e/*.md
+/e2e/run-*.json
+/e2e/.env

@@ -1,0 +1,2 @@
+# the inline build has no COPY, so nothing from the project directory is sent to the daemon
+*
