@@ -28,6 +28,13 @@ type captureReport struct {
 }
 
 func runCapture(e *Env, args []string) error {
+	return capture(e, args, true)
+}
+
+// capture writes local changes back into the layers. listClones adds the
+// git status of every layer clone, which push leaves out because it lists
+// the same changes before committing them.
+func capture(e *Env, args []string, listClones bool) error {
 	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
 	fs.SetOutput(e.Stderr)
 	var add multiFlag
@@ -157,7 +164,11 @@ func runCapture(e *Env, args []string) error {
 	if len(rep.updated) == 0 {
 		e.printf("capture: no local changes to write back\n")
 	} else {
-		e.printf("Written to the layers (review; commit with git where the layer is a repository):\n")
+		if listClones {
+			e.printf("Written to the layers (review; commit with git where the layer is a repository):\n")
+		} else {
+			e.printf("Written to the layers:\n")
+		}
 		for _, u := range rep.updated {
 			e.printf("  %s\n", u)
 		}
@@ -176,7 +187,7 @@ func runCapture(e *Env, args []string) error {
 		}
 	}
 	for _, l := range loaded.Layers {
-		if !cloned(loaded.Device, l.Name, l.Dir) {
+		if !listClones || !cloned(loaded.Device, l.Name, l.Dir) {
 			continue
 		}
 		if out, err := git(l.Dir, "status", "--short"); err == nil && out != "" {

@@ -23,13 +23,13 @@ func TestDirectoryLayerLifecycle(t *testing.T) {
 
 	// both layers are directories: no repository, so no credential question
 	// overview rows once acme is added: base, overlay acme, add, project
-	// dirs (4), default identity, auto pull, profiles, trusted layers,
-	// language, save (10)
+	// dirs (4), local clones, default identity, auto pull, profiles,
+	// trusted layers, language, save (11)
 	answers := strings.Join([]string{
 		"1", baseDir,
 		"2", "acme", acmeDir,
 		"4", filepath.Join(w.home, "Projects"),
-		"10", // save
+		"11", // save
 		"y",  // apply now; doctor follows
 	}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
@@ -124,7 +124,7 @@ func TestDirectoryLayerStarter(t *testing.T) {
 		"2", "acme", acmeDir, // does not exist yet either
 		"Acme Me", "me@acme.example", "github.com/acme-inc/*",
 		"4", filepath.Join(w.home, "Projects"),
-		"10", // save
+		"11", // save
 		"y",  // apply now; doctor follows
 	}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
@@ -171,7 +171,7 @@ func TestDirectoryLayerRefusals(t *testing.T) {
 		"claude/CLAUDE.md": "# shared\n",
 	})
 	answers := strings.Join([]string{
-		"1", notes, base, "3", filepath.Join(w.home, "Projects"), "8", "n",
+		"1", notes, base, "3", filepath.Join(w.home, "Projects"), "9", "n",
 	}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
 	if code != 0 {

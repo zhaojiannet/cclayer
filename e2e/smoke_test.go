@@ -95,7 +95,7 @@ func TestSmoke(t *testing.T) {
 				}
 			case "S1":
 				cases = []smokeCase{
-					{"setup", []string{"setup", "--accessible"}, "11\n", 0, "nothing saved", nil},
+					{"setup", []string{"setup", "--accessible"}, "12\n", 0, "nothing saved", nil},
 					{"apply", []string{"apply"}, "", 1, "cclayer init", nil},
 					{"apply --hook", []string{"apply", "--hook"}, "", 0, "cclayer hook", nil},
 					{"capture", []string{"capture"}, "", 1, "", nil},
@@ -115,7 +115,7 @@ func TestSmoke(t *testing.T) {
 				}
 			case "S2":
 				cases = []smokeCase{
-					{"setup", []string{"setup", "--accessible"}, "11\n", 0, "nothing saved", nil},
+					{"setup", []string{"setup", "--accessible"}, "12\n", 0, "nothing saved", nil},
 					{"init", []string{"init"}, "", 0, "init done", nil},
 					{"apply", []string{"apply"}, "", 0, "Nothing to do", nil},
 					{"apply --hook", []string{"apply", "--hook"}, "", 0, "", nil},
@@ -135,7 +135,7 @@ func TestSmoke(t *testing.T) {
 				}
 			case "S3":
 				cases = []smokeCase{
-					{"setup", []string{"setup", "--accessible"}, "11\n", 0, "nothing saved", nil},
+					{"setup", []string{"setup", "--accessible"}, "12\n", 0, "nothing saved", nil},
 					{"init", []string{"init"}, "", 0, "init done", nil},
 					{"apply", []string{"apply"}, "", 0, "Nothing to do", nil},
 					{"apply --hook", []string{"apply", "--hook"}, "", 0, "", nil},
@@ -187,7 +187,7 @@ func TestSmokeSetupFromNothing(t *testing.T) {
 		"claude/CLAUDE.md": "# shared\n",
 	})
 	// overview: base layer, project dirs, save; then apply
-	answers := strings.Join([]string{"1", base, "3", filepath.Join(w.home, "Projects"), "8", "y"}, "\n") + "\n"
+	answers := strings.Join([]string{"1", base, "3", filepath.Join(w.home, "Projects"), "9", "y"}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
 	if code != 0 || w.read(".claude/CLAUDE.md") != "# shared\n" {
 		t.Fatalf("setup from nothing: %d %s", code, out)

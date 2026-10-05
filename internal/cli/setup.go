@@ -280,6 +280,7 @@ type draft struct {
 	profiles bool
 	trust    []string
 	lang     string
+	cloneDir string
 }
 
 func newDraft(w *wizard, d *manifest.Device) *draft {
@@ -290,6 +291,7 @@ func newDraft(w *wizard, d *manifest.Device) *draft {
 		profiles: d.Profiles,
 		trust:    slices.Clone(d.TrustExec),
 		lang:     d.Lang,
+		cloneDir: d.CloneRoot(),
 	}
 	if dr.roots == "" {
 		dr.roots = "~/Projects"
@@ -444,6 +446,7 @@ func (dr *draft) rows() []huh.Option[string] {
 	}
 	lines = append(lines, line{i18n.T("Add an overlay"), i18n.T("a private layer for one team"), "add"})
 	lines = append(lines, line{i18n.T("Project dirs"), dr.roots, "roots"})
+	lines = append(lines, line{i18n.T("Local clones"), dr.cloneDir, "clonedir"})
 	if len(dr.layers) > 1 {
 		id := dr.identity
 		if id == "" {
@@ -546,6 +549,8 @@ func (w *wizard) overview(d *manifest.Device, existing bool) (*draft, error) {
 			err = w.pickLayer(dr, dr.find(strings.TrimPrefix(choice, "layer:")))
 		case choice == "roots":
 			err = w.editRoots(dr)
+		case choice == "clonedir":
+			err = w.editCloneDir(dr)
 		case choice == "identity":
 			err = w.editIdentity(dr)
 		case choice == "trust":
@@ -719,6 +724,37 @@ func cmpOr(s, def string) string {
 	return s
 }
 
+func (w *wizard) editCloneDir(dr *draft) error {
+	dir := dr.cloneDir
+	if err := w.run(true, page{fields: []huh.Field{huh.NewInput().Title(i18n.T("Where this device keeps its clones of the layer repositories")).
+		Description(i18n.T("One folder per layer. Saving moves the clones cclayer made into it.")).Value(&dir).Validate(validCloneDir)}}); err != nil {
+		return err
+	}
+	dr.cloneDir = cleanCloneDir(dir)
+	return nil
+}
+
+// validCloneDir rejects a clone directory the manifest would refuse, or a
+// file in its place.
+func validCloneDir(s string) error {
+	s = cleanCloneDir(s)
+	if err := manifest.CheckCloneDir(s); err != nil {
+		return err
+	}
+	if fi, err := os.Stat(manifest.ExpandHome(s)); err == nil && !fi.IsDir() {
+		return fmt.Errorf("%s is a file, not a directory", s)
+	}
+	return nil
+}
+
+func cleanCloneDir(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 1 {
+		s = strings.TrimRight(s, "/")
+	}
+	return s
+}
+
 func (w *wizard) editRoots(dr *draft) error {
 	roots := dr.roots
 	if err := w.run(true, page{fields: []huh.Field{huh.NewInput().Title(i18n.T("Directories that hold your projects")).
@@ -760,8 +796,13 @@ func (w *wizard) editTrust(dr *draft) error {
 // commit writes the draft into the manifest and does what a changed
 // location needs: drop the old credential, write a starter layer.toml.
 func (w *wizard) commit(d *manifest.Device, dr *draft) error {
+	moves, err := planMoves(d, dr)
+	if err != nil {
+		return err
+	}
 	// every new address is checked and every starter written before any
-	// credential is dropped, so a failure leaves the device as it was
+	// clone is moved or credential dropped, so a failure leaves the device
+	// as it was
 	for _, l := range dr.layers {
 		if l.loc == l.orig {
 			continue
@@ -775,6 +816,13 @@ func (w *wizard) commit(d *manifest.Device, dr *draft) error {
 				return err
 			}
 		}
+	}
+	if err := w.moveClones(d, moves); err != nil {
+		return err
+	}
+	d.CloneDir = dr.cloneDir
+	if d.CloneDir == manifest.DefaultCloneDir {
+		d.CloneDir = ""
 	}
 	for _, l := range dr.layers {
 		if l.loc != l.orig {
@@ -810,7 +858,7 @@ func (w *wizard) location(d *manifest.Device, name string) string {
 }
 
 // setLocation records where a layer comes from. A URL or a bare repository
-// is cloned under ~/.local/share/cclayer; a directory is used where it is,
+// is cloned into the device's clone directory; a directory is used where it is,
 // its starter layer.toml written by commit beforehand when it was new.
 func (w *wizard) setLocation(d *manifest.Device, l *layerDraft) error {
 	name, loc := l.name, l.loc
@@ -829,7 +877,7 @@ func (w *wizard) setLocation(d *manifest.Device, l *layerDraft) error {
 			if err := w.dropCredential(d, name); err != nil {
 				return err
 			}
-			d.Clone[name] = "~/.local/share/cclayer/" + name
+			d.Clone[name] = d.NewClonePath(name)
 		}
 		d.Repo[name] = loc
 		return nil
@@ -839,6 +887,72 @@ func (w *wizard) setLocation(d *manifest.Device, l *layerDraft) error {
 	}
 	d.Clone[name] = localPath(loc)
 	delete(d.Repo, name)
+	return nil
+}
+
+// cloneMove is one layer clone that follows a new clone directory.
+type cloneMove struct {
+	layer    string
+	from, to string // as the manifest stores them
+	// absent: not cloned yet on this device, so only the path changes
+	absent bool
+}
+
+// planMoves lists the clones that follow a changed clone directory: those
+// cclayer made at the old default place. A clone path written by hand
+// elsewhere stays. A target that is already taken stops the save.
+func planMoves(d *manifest.Device, dr *draft) ([]cloneMove, error) {
+	if dr.cloneDir == d.CloneRoot() {
+		return nil, nil
+	}
+	if err := manifest.CheckCloneDir(dr.cloneDir); err != nil {
+		return nil, err
+	}
+	next := manifest.Device{CloneDir: dr.cloneDir}
+	var moves []cloneMove
+	for _, l := range dr.layers {
+		if !l.saved || d.Repo[l.name] == "" || d.Clone[l.name] != d.NewClonePath(l.name) {
+			continue
+		}
+		m := cloneMove{layer: l.name, from: d.Clone[l.name], to: next.NewClonePath(l.name)}
+		if !exists(manifest.ExpandHome(m.from)) {
+			m.absent = true
+			moves = append(moves, m)
+			continue
+		}
+		if exists(manifest.ExpandHome(m.to)) {
+			return nil, fmt.Errorf("cannot move the %s clone to %s: something is already there", l.name, m.to)
+		}
+		moves = append(moves, m)
+	}
+	return moves, nil
+}
+
+// moveClones moves the planned clones and records their new paths. A move
+// that fails puts the ones already done back.
+func (w *wizard) moveClones(d *manifest.Device, moves []cloneMove) error {
+	var done []cloneMove
+	for _, m := range moves {
+		if m.absent {
+			continue
+		}
+		to := manifest.ExpandHome(m.to)
+		err := os.MkdirAll(filepath.Dir(to), 0o755)
+		if err == nil {
+			err = os.Rename(manifest.ExpandHome(m.from), to)
+		}
+		if err != nil {
+			for _, back := range done {
+				os.Rename(manifest.ExpandHome(back.to), manifest.ExpandHome(back.from))
+			}
+			return fmt.Errorf("moving the %s clone to %s: %w (on another disk, move it by hand and edit [clone] in the device manifest)", m.layer, m.to, err)
+		}
+		done = append(done, m)
+		w.e.printf("moved %s -> %s\n", m.from, m.to)
+	}
+	for _, m := range moves {
+		d.Clone[m.layer] = m.to
+	}
 	return nil
 }
 

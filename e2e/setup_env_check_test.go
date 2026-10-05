@@ -11,9 +11,9 @@ func TestSetupWithOverlay(t *testing.T) {
 	w := newWorld(t)
 	base := w.bareRepo("base", map[string]string{"layer.toml": "[layer]\nname = \"base\"\nkind = \"base\"\n[claude]\npaths = [\"CLAUDE.md\"]\n", "claude/CLAUDE.md": "# shared\n"})
 	acme := w.bareRepo("acme", map[string]string{"layer.toml": "[layer]\nname = \"acme\"\nkind = \"overlay\"\n[identity]\nname = \"A\"\nemail = \"a@acme.example\"\n[[match]]\nremote = \"github.com/acme-inc/*\"\n"})
-	// overview: base, add acme, project dirs (4), profiles on (7), trusted
-	// layers (8): acme then 0 ends, save (10), apply
-	answers := strings.Join([]string{"1", base, "2", "acme", acme, "4", filepath.Join(w.home, "Projects"), "7", "8", "2", "0", "10", "y"}, "\n") + "\n"
+	// overview: base, add acme, project dirs (4), profiles on (8), trusted
+	// layers (9): acme then 0 ends, save (11), apply
+	answers := strings.Join([]string{"1", base, "2", "acme", acme, "4", filepath.Join(w.home, "Projects"), "8", "9", "2", "0", "11", "y"}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
 	if code != 0 || strings.Contains(out, "Invalid") {
 		t.Fatalf("setup: %d %s", code, out)
@@ -36,9 +36,9 @@ func TestSetupRerunUpdates(t *testing.T) {
 	w, sd := applied(t)
 	newRoot := filepath.Join(w.home, "Work")
 	os.MkdirAll(newRoot, 0o755)
-	// the overview opens on the saved values: project dirs (4), save (10),
+	// the overview opens on the saved values: project dirs (4), save (11),
 	// no apply
-	answers := strings.Join([]string{"4", newRoot, "10", "n"}, "\n") + "\n"
+	answers := strings.Join([]string{"4", newRoot, "11", "n"}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
 	if code != 0 || strings.Contains(out, "Invalid") {
 		t.Fatalf("rerun: %d %s", code, out)
@@ -182,13 +182,13 @@ func TestSetupOverviewCorrections(t *testing.T) {
 	wrong := w.bareRepo("wrong", map[string]string{"layer.toml": "[layer]\nname = \"base\"\nkind = \"base\"\n"})
 	acme := w.bareRepo("acme", map[string]string{"layer.toml": "[layer]\nname = \"acme\"\nkind = \"overlay\"\n[identity]\nname = \"A\"\nemail = \"a@acme.example\"\n[[match]]\nremote = \"github.com/acme-inc/*\"\n"})
 	answers := strings.Join([]string{
-		"8",        // save without a base: refused, the overview comes back
+		"9",        // save without a base: refused, the overview comes back
 		"1", wrong, // base layer, wrong
 		"1", base, // picked again and replaced
 		"2", "acme", acme, // overlay added by mistake
 		"2", "2", // picked again: remove it
 		"3", filepath.Join(w.home, "Projects"),
-		"8", "n", // save, no apply
+		"9", "n", // save, no apply
 	}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")
 	if code != 0 || strings.Contains(out, "Invalid") {
@@ -207,7 +207,7 @@ func TestSetupOverviewCorrections(t *testing.T) {
 func TestSetupQuitWritesNothing(t *testing.T) {
 	w := newWorld(t)
 	base := w.bareRepo("base", map[string]string{"layer.toml": "[layer]\nname = \"base\"\nkind = \"base\"\n"})
-	out, code := w.run("1\n"+base+"\n9\n", "setup", "--accessible")
+	out, code := w.run("1\n"+base+"\n10\n", "setup", "--accessible")
 	if code != 0 || !strings.Contains(out, "nothing saved") {
 		t.Errorf("quit: %d %s", code, out)
 	}

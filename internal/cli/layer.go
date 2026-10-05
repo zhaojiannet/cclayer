@@ -66,10 +66,10 @@ func runLayerAdd(e *Env, args []string) error {
 	switch kind {
 	case locURL:
 		repo = loc
-		d.Clone[name] = "~/.local/share/cclayer/" + name
+		d.Clone[name] = d.NewClonePath(name)
 	case locGitDir:
 		repo = manifest.ExpandHome(localPath(loc))
-		d.Clone[name] = "~/.local/share/cclayer/" + name
+		d.Clone[name] = d.NewClonePath(name)
 	case locLayerDir:
 		d.Clone[name] = localPath(loc)
 	case locNew:

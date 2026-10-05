@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="cclayer 标志：基础层和团队覆盖层保持同步" width="160"></p>
+
 # cclayer
 
 在多台机器之间同步 Claude Code 配置：`CLAUDE.md`、规则、skills、hooks、`settings.json`、插件和 MCP server。每个团队专属的部分，包括它的 git 提交身份，只出现在它自己的项目里。
@@ -7,6 +9,8 @@
 你在不止一台机器上用 Claude Code，手头的项目也来自不止一个团队。全局规则、技能、插件、权限这些配置，你希望改一次处处生效；而每个团队的 git 提交身份、专用规则和 hook，各自只在这个团队的项目和机器上生效，不会混进别的项目。
 
 cclayer 把配置拆成两种 git 仓库：一个**公开的基础层**放各处相同的部分，每个团队一个**私有的覆盖层**放只属于它的部分。每台机器只拉基础层加它被允许看到的覆盖层，一条命令铺好，一条命令把本机的改动写回去。
+
+<p align="center"><img src="assets/setup.png" alt="cclayer setup 界面：左栏是各层和本机设置，右栏是选中项的详情，底部是保存按钮" width="800"></p>
 
 ## 只同步自己的配置
 
@@ -44,6 +48,7 @@ cclayer setup            # 首次配置：各层、项目目录、凭证、apply
 cclayer init             # 按你自己写好的清单 clone 各层
 cclayer apply            # 把各层铺到这台设备
 cclayer capture          # 把本机改动写回层的 clone
+cclayer push             # 先 capture，再提交并推送各层仓库
 cclayer check            # 拒绝不该进层的内容
 cclayer status           # 各层的 git 状态和匹配到的项目
 cclayer keys setup <层>  # 给这台设备配一个层仓库的凭证
@@ -61,6 +66,8 @@ cclayer version
 `apply` 先跑 `check`，然后把基础层镜像进 `~/.claude`，合并 `settings.json` 里归属的键，重新生成 `~/.gitconfig.cclayer` 并在 `~/.gitconfig` 末尾维护一个 include 块，确认一次后重放插件和 MCP server，再把覆盖层的文件写进每个匹配的项目。它记得自己写过什么：设备上改过、层里也变了的文件算冲突，交互式 `apply` 会问，`apply --hook` 不碰。被覆盖的文件备份在 `~/.local/state/cclayer/backups/`。`apply --pull` 先把每个 git 层的 clone 快进到远程：有未提交改动、没有上游分支、没网、不是快进的，报出来并跳过；目录层没有可拉取的内容。
 
 `capture` 是反方向：设备上的改动和上次 `apply` 写的不一样时写回所属的层，每个文件先过 `check`。只在设备上有的文件会列出来，用 `--add <文件或目录>` 收进去。匹配项目里改过的注入文件也写回所属覆盖层；几个项目改得不一致时，用 `--from <项目>` 指定以哪个为准。`capture` 不提交。
+
+`push` 是同步的上传那一半，`apply --pull` 是下载那一半。它先跑 `capture` 和 `check`，列出每个层仓库要提交的内容，问一次（加 `--yes` 不问），然后提交（说明用 `-m <说明>`，不给就写「cclayer: capture from <机器名>」），把别的机器在这期间推上去的提交接到前面，再推送。和那些提交冲突时停下，克隆保持原样，留给你手动合并。目录层跳过，靠同步它所在文件夹的工具传过去。
 
 `leave` 对该层每个项目跑 `claude purge`，删掉注入的文件和这一层的凭证，去掉这一层重新生成 git 配置，保存清单，最后删 clone。clone 里有未提交或未推送的改动时拒绝，加 `--force` 才删。层是你自己指定的目录时不删，原地保留。
 
@@ -91,6 +98,7 @@ profile_dir = "~/.claude-profiles"       # 这些目录放在哪
 blocklist = ["acme", "acme-inc"]         # init 从覆盖层自动填
 blocklist_except = []                    # 基础层可以出现的词，init 不会把它们加进 blocklist
 trust_exec = []                          # 允许在 git 片段里设能让 git 执行程序的键的层
+clone_dir = "~/.local/share/cclayer"     # 仓库地址的层克隆到哪里（默认值）
 
 [clone]
 base = "~/.local/share/cclayer/base"
@@ -101,7 +109,7 @@ base = "https://github.com/you/cclayer-base.git"
 acme = "git@github.com:you/cclayer-acme.git"
 ```
 
-`[repo]` 里没有条目的层就是一个本机目录：`[clone]` 指到哪，cclayer 就直接读写哪，不 clone、不拉取，`status` 标为 `local directory`，`leave` 不删它。即使里面有 `.git`，cclayer 也不在其中运行 git，因为那份配置不是 cclayer 写的。把这个目录放进网盘的同步文件夹，几台机器各自 `setup` 时填同一个路径，就能不经 git 同步。路径还不存在时 `setup` 会写一份起步的 `layer.toml`。环境变量 `CCLAYER_DEVICE` 改清单位置，`CCLAYER_STATE` 改状态目录（默认 `~/.local/state/cclayer`），`CCLAYER_LANG` 改界面语言。
+`[repo]` 里没有条目的层就是一个本机目录：`[clone]` 指到哪，cclayer 就直接读写哪，不 clone、不拉取，`status` 标为 `local directory`，`leave` 不删它。即使里面有 `.git`，cclayer 也不在其中运行 git，因为那份配置不是 cclayer 写的。把这个目录放进网盘的同步文件夹，几台机器各自 `setup` 时填同一个路径，就能不经 git 同步。路径还不存在时 `setup` 会写一份起步的 `layer.toml`。仓库地址的层克隆到 `~/.local/share/cclayer/<层名>`。设备清单里的 `clone_dir`，或 setup 里「本机克隆位置」这一行，可以换一个文件夹，保存时 setup 会把 cclayer 克隆的层搬过去。GitHub 上的仓库不会变。环境变量 `CCLAYER_DEVICE` 改清单位置，`CCLAYER_STATE` 改状态目录（默认 `~/.local/state/cclayer`），`CCLAYER_LANG` 改界面语言。
 
 ### 基础层
 

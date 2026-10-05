@@ -159,7 +159,7 @@ func interactiveDevice(e *Env) (*manifest.Device, error) {
 	}
 	d.Layers = []string{"base"}
 	d.Repo["base"] = baseURL
-	d.Clone["base"] = "~/.local/share/cclayer/base"
+	d.Clone["base"] = d.NewClonePath("base")
 	for {
 		name := ask("overlay layer name (empty to finish)", "")
 		if name == "" {
@@ -171,7 +171,7 @@ func interactiveDevice(e *Env) (*manifest.Device, error) {
 		}
 		d.Layers = append(d.Layers, name)
 		d.Repo[name] = url
-		d.Clone[name] = "~/.local/share/cclayer/" + name
+		d.Clone[name] = d.NewClonePath(name)
 	}
 	roots := ask("directories that hold your projects, comma separated", "~/Projects")
 	for _, rt := range strings.Split(roots, ",") {

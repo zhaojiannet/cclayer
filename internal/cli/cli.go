@@ -20,6 +20,8 @@ Usage:
   cclayer apply --hook            non-interactive variant for the SessionStart hook
   cclayer capture [--add <path>]... [--from <project>]
                                   write local changes back into the layer clones
+  cclayer push [--add <path>]... [-m <message>] [--yes]
+                                  capture, then commit and push the layer repositories
   cclayer check                   refuse content that must not enter a layer
   cclayer status                  per-layer state and matched projects
   cclayer leave <layer>           purge a layer's projects and remove it from this device
@@ -55,6 +57,8 @@ func Run(e *Env, args []string) int {
 		err = runApply(e, args[1:])
 	case "capture":
 		err = runCapture(e, args[1:])
+	case "push":
+		err = runPush(e, args[1:])
 	case "check":
 		err = runCheck(e, args[1:])
 	case "status":

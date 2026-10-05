@@ -36,7 +36,7 @@ const (
 )
 
 type uiItem struct {
-	key     string // "layer", "add", "roots", "identity", "autopull", "profiles", "trust", "lang"
+	key     string // "layer", "add", "roots", "clonedir", "identity", "autopull", "profiles", "trust", "lang"
 	layer   *layerDraft
 	label   string
 	value   string
@@ -118,6 +118,7 @@ func (m *setupUI) items() []uiItem {
 	}
 	out = append(out, uiItem{key: "add", label: i18n.T("+ Add an overlay")})
 	out = append(out, uiItem{key: "roots", label: i18n.T("Project dirs"), value: m.dr.roots, section: 1})
+	out = append(out, uiItem{key: "clonedir", label: i18n.T("Local clones"), value: m.dr.cloneDir, section: 1})
 	if len(m.dr.layers) > 1 {
 		id := m.dr.identity
 		if id == "" {
@@ -278,6 +279,24 @@ func (m *setupUI) detail() (title, desc string, fields []uiField, note string) {
 		title = i18n.T("Project dirs")
 		desc = i18n.T("cclayer looks for git repositories in these directories and gives each one the overlay that matches it.")
 		fields = []uiField{{id: "roots", kind: fieldText, label: i18n.T("Directories"), value: m.dr.roots, hint: i18n.T("comma separated; cclayer scans them for repositories")}}
+	case "clonedir":
+		title = i18n.T("Local clones")
+		desc = i18n.T("The folder on this device that holds the local copies of the layer repositories, one subfolder per layer. apply reads them, push commits from them. The repositories on GitHub do not move. Keep it outside ~/.claude; a directory layer stays where it is.")
+		fields = []uiField{{id: "clonedir", kind: fieldText, label: i18n.T("Directory"), value: m.dr.cloneDir, hint: i18n.T("An absolute path or one starting with ~/. Paths a layer writes into its own files, such as a hooksPath in its git fragment, do not change with it.")}}
+		switch moves, err := planMoves(m.d, m.dr); {
+		case err != nil:
+			note = err.Error()
+		default:
+			var names []string
+			for _, mv := range moves {
+				if !mv.absent {
+					names = append(names, mv.layer)
+				}
+			}
+			if len(names) > 0 {
+				note = fmt.Sprintf(i18n.T("Saving moves these clones here: %s."), strings.Join(names, ", "))
+			}
+		}
 	case "identity":
 		title = i18n.T("Default identity")
 		desc = i18n.T("The git identity in repositories no overlay matches. None makes git refuse to commit there, so nothing goes out under the wrong name.")
@@ -319,7 +338,7 @@ func (m *setupUI) layerNote(l *layerDraft) string {
 		case l.loc == l.orig && (k == locURL || k == locGitDir):
 			note = fmt.Sprintf(i18n.T("Cloned at %s."), m.w.e.tilde(m.d.ClonePath(l.name)))
 		case k == locURL || k == locGitDir:
-			note = fmt.Sprintf(i18n.T("Saving clones it to %s."), "~/.local/share/cclayer/"+cmpOr(l.name, "…"))
+			note = fmt.Sprintf(i18n.T("Saving clones it to %s."), strings.TrimSuffix(m.dr.cloneDir, "/")+"/"+cmpOr(l.name, "…"))
 		case k == locNew:
 			note = fmt.Sprintf(i18n.T("Saving writes a starter layer.toml to %s."), l.loc)
 		default:

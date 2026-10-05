@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="cclayer logo: a base layer and a team overlay kept in sync" width="160"></p>
+
 # cclayer
 
 Sync your Claude Code configuration across machines: `CLAUDE.md`, rules,
@@ -17,6 +19,8 @@ cclayer splits the configuration into two kinds of git repositories: one
 overlay** per team for what belongs to it alone. A machine pulls the base
 plus the overlays it may see; one command applies them, one command writes
 local changes back.
+
+<p align="center"><img src="assets/setup.png" alt="cclayer setup: layers and device settings on the left, details of the selected item on the right, Save buttons below" width="800"></p>
 
 ## Just your own setup
 
@@ -74,6 +78,7 @@ cclayer setup            # guided first-time setup: layers, roots, credentials, 
 cclayer init             # clone the layers of a manifest you wrote yourself
 cclayer apply            # apply the layers to this device
 cclayer capture          # write local edits back into the layer clones
+cclayer push             # capture, then commit and push the layer repositories
 cclayer check            # refuse content that must not enter a layer
 cclayer status           # per-layer git state, matched projects
 cclayer keys setup <layer>   # give this device credentials for one layer repository
@@ -131,6 +136,14 @@ first. Device-only files are listed and admitted with `--add <file or directory>
 files edited inside matched projects go back to their overlay too; when two
 projects disagree, `--from <project>` names the one to take. `capture` never
 commits.
+
+`push` is the upload half of a sync, as `apply --pull` is the download
+half. It runs `capture` and `check`, lists what each layer repository would
+commit, asks once (`--yes` skips the question), then commits with
+`-m <message>` or "cclayer: capture from <host>", rebases onto commits
+another machine pushed meanwhile and pushes. A conflict with those commits
+stops it with the clone as it was, for you to merge by hand. Directory
+layers are left out; whatever syncs their folder carries them.
 
 `leave` runs `claude purge` on each of the layer's projects, removes the
 injected files and the layer's credentials, regenerates the git
@@ -197,6 +210,7 @@ profile_dir = "~/.claude-profiles"       # where those directories live
 blocklist = ["acme", "acme-inc"]         # filled by init from the overlays
 blocklist_except = []                    # words the base may carry anyway, never added to blocklist
 trust_exec = []                          # layers whose git fragment may set keys that run programs
+clone_dir = "~/.local/share/cclayer"     # where repository layers are cloned (the default)
 
 [clone]
 base = "~/.local/share/cclayer/base"
@@ -213,7 +227,10 @@ writes the `[clone]` path as it is, never clones or pulls, `status` marks it
 when it holds a `.git`, since that configuration was not written by cclayer. Put that directory in a folder your
 cloud drive syncs and give every machine the same path in `setup` to sync
 without git. `setup` writes a starter `layer.toml` when the path does not
-exist yet. `CCLAYER_DEVICE` moves the manifest and `CCLAYER_STATE` the state
+exist yet. Repository layers are cloned into `~/.local/share/cclayer/<layer>`.
+`clone_dir` in the device manifest, or the Local clones row of setup, picks
+another folder; setup moves the clones cclayer made there when you save.
+The repositories on GitHub do not move. `CCLAYER_DEVICE` moves the manifest and `CCLAYER_STATE` the state
 directory (`~/.local/state/cclayer`); `CCLAYER_LANG` picks the message
 language.
 

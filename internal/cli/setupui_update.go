@@ -368,6 +368,11 @@ func (m *setupUI) set(id, v string) error {
 			return errors.New("required")
 		}
 		l.remote = v
+	case "clonedir":
+		if err := validCloneDir(v); err != nil {
+			return err
+		}
+		m.dr.cloneDir = cleanCloneDir(v)
 	case "roots":
 		if len(splitRoots(v)) == 0 {
 			return errors.New("give at least one directory")

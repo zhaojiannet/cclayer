@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="cclayer のロゴ：ベースレイヤーとチームのオーバーレイを同期" width="160"></p>
+
 # cclayer
 
 Claude Code の設定を複数のマシンで同期する：`CLAUDE.md`、ルール、skills、hooks、`settings.json`、プラグイン、MCP サーバー。あるチーム固有の部分は、git の身元も含めて、そのチームのプロジェクトにだけ現れる。
@@ -7,6 +9,8 @@ Claude Code の設定を複数のマシンで同期する：`CLAUDE.md`、ルー
 Claude Code を複数のマシンで使い、プロジェクトは複数のチームから来る。グローバルなルール、スキル、プラグイン、権限は一度変えればどこでも反映されてほしい。一方、各チームの git の身元、ルール、hook は、そのチームのプロジェクトとマシンでだけ有効になり、別のチームのものと混ざらない。
 
 cclayer は設定を 2 種類の git リポジトリに分ける。どこでも同じ部分を入れる**公開のベースレイヤー**が 1 つ、そのチームだけのものを入れる**非公開のオーバーレイ**がチームごとに 1 つ。各マシンはベースと、見てよいオーバーレイだけを pull する。1 コマンドで適用し、1 コマンドでローカルの変更を書き戻す。
+
+<p align="center"><img src="assets/setup.png" alt="cclayer setup の画面：左にレイヤーとマシンの設定、右に選んだ項目の詳細、下に保存ボタン" width="800"></p>
 
 ## 自分の設定だけを同期する
 
@@ -44,6 +48,7 @@ cclayer setup            # 初期設定：レイヤー、ルート、認証情�
 cclayer init             # 自分で書いたマニフェストのレイヤーを clone する
 cclayer apply            # レイヤーをこのデバイスに適用
 cclayer capture          # ローカルの編集をレイヤーの clone に書き戻す
+cclayer push             # capture してから、各レイヤーのリポジトリをコミットして push
 cclayer check            # レイヤーに入れてはいけない内容を拒否
 cclayer status           # レイヤーごとの git 状態と一致したプロジェクト
 cclayer keys setup <layer>   # このデバイスに 1 つのレイヤーリポジトリの認証情報を与える
@@ -61,6 +66,8 @@ cclayer version
 `apply` はまず `check` を実行し、ベースを `~/.claude` に写し、`settings.json` の所有キーをマージし、`~/.gitconfig.cclayer` と `~/.gitconfig` 末尾の include ブロックを再生成し、一度の確認のあとプラグインと MCP サーバーを再適用し、一致した各プロジェクトにオーバーレイのファイルを書く。前回書いた内容を記憶していて、デバイス側で編集され、かつレイヤー側も変わったファイルは競合として扱う。対話的な `apply` は確認し、`apply --hook` は触らない。上書きしたファイルは `~/.local/state/cclayer/backups/` にバックアップされる。`apply --pull` は先に各 git レイヤーの clone を fast-forward する。未コミットの変更がある、上流ブランチがない、ネットワークがない、fast-forward できない clone は報告してスキップし、ローカルディレクトリには pull するものがない。
 
 `capture` はその逆。前回の `apply` が書いた内容と異なるデバイス側の変更を、所有するレイヤーに書き戻す。各ファイルは先に `check` を通る。デバイスにしかないファイルは一覧され、`--add <ファイルかディレクトリ>` で受け入れる。一致したプロジェクト内で編集された注入ファイルも所属するオーバーレイに書き戻す。複数のプロジェクトで内容が食い違うときは `--from <project>` でどれを採るか指定する。`capture` はコミットしない。
+
+`push` は同期のアップロード側で、`apply --pull` がダウンロード側にあたる。`capture` と `check` を実行し、各レイヤーのリポジトリでコミットする内容を一覧して一度だけ尋ね（`--yes` で省略）、コミットする（メッセージは `-m <message>`、なければ「cclayer: capture from <ホスト名>」）。その間にほかのマシンが push したコミットの上に載せ直してから push する。それらのコミットと競合したら clone を元のままにして止まり、手作業でのマージに任せる。ディレクトリレイヤーは対象外で、そのフォルダを同期する仕組みに任せる。
 
 `leave` はそのレイヤーの各プロジェクトに `claude purge` を実行し、注入したファイルとそのレイヤーの認証情報を削除し、レイヤーを除いた git 設定を再生成し、マニフェストを保存し、最後に clone を削除する。clone に未コミットや未 push の変更があるときは `--force` なしでは拒否する。自分で指定したディレクトリのレイヤーは削除せずそのまま残す。
 
@@ -91,6 +98,7 @@ profile_dir = "~/.claude-profiles"       # それらのディレクトリの置�
 blocklist = ["acme", "acme-inc"]         # init がオーバーレイから埋める
 blocklist_except = []                    # ベースに入ってよい語。init は blocklist に加えない
 trust_exec = []                          # git フラグメントでプログラムを実行させるキーを許すレイヤー
+clone_dir = "~/.local/share/cclayer"     # リポジトリのレイヤーの clone 先（既定値）
 
 [clone]
 base = "~/.local/share/cclayer/base"
@@ -101,7 +109,7 @@ base = "https://github.com/you/cclayer-base.git"
 acme = "git@github.com:you/cclayer-acme.git"
 ```
 
-`[repo]` に項目がないレイヤーはローカルディレクトリ。cclayer は `[clone]` のパスをそのまま読み書きし、clone も pull もしない。`status` は `local directory` と表示し、`leave` は削除しない。中に `.git` があっても cclayer はそこで git を実行しない。その設定は cclayer が書いたものではないため。そのディレクトリをクラウドドライブの同期フォルダに置き、各マシンの `setup` で同じパスを入れれば、git なしで同期できる。まだ存在しないパスを入れると `setup` が初期の `layer.toml` を書く。環境変数 `CCLAYER_DEVICE` はマニフェストの場所を、`CCLAYER_STATE` は状態ディレクトリ（既定は `~/.local/state/cclayer`）を変える。`CCLAYER_LANG` は表示言語を変える。
+`[repo]` に項目がないレイヤーはローカルディレクトリ。cclayer は `[clone]` のパスをそのまま読み書きし、clone も pull もしない。`status` は `local directory` と表示し、`leave` は削除しない。中に `.git` があっても cclayer はそこで git を実行しない。その設定は cclayer が書いたものではないため。そのディレクトリをクラウドドライブの同期フォルダに置き、各マシンの `setup` で同じパスを入れれば、git なしで同期できる。まだ存在しないパスを入れると `setup` が初期の `layer.toml` を書く。リポジトリのレイヤーは `~/.local/share/cclayer/<layer>` に clone される。デバイスマニフェストの `clone_dir` か、setup の「ローカルの clone 先」の行で別のフォルダを選べ、保存時に setup が cclayer の clone をそこへ移す。GitHub 上のリポジトリは動かない。環境変数 `CCLAYER_DEVICE` はマニフェストの場所を、`CCLAYER_STATE` は状態ディレクトリ（既定は `~/.local/state/cclayer`）を変える。`CCLAYER_LANG` は表示言語を変える。
 
 ### ベースレイヤー
 

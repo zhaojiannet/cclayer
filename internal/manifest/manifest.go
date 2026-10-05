@@ -56,6 +56,45 @@ type Device struct {
 	// Lang is the language of cclayer's messages: en, zh or ja. Empty
 	// follows CCLAYER_LANG and the locale.
 	Lang string `toml:"lang,omitempty"`
+	// CloneDir is where new clones of layer repositories go, one
+	// directory per layer; default ~/.local/share/cclayer. Paths already
+	// in [clone] are kept as they are.
+	CloneDir string `toml:"clone_dir,omitempty"`
+}
+
+// DefaultCloneDir is where layer repositories are cloned unless the device
+// manifest names another directory: the per-user data directory of the XDG
+// layout, outside ~/.claude.
+const DefaultCloneDir = "~/.local/share/cclayer"
+
+// CloneRoot is the directory new layer clones go into.
+func (d *Device) CloneRoot() string {
+	if d.CloneDir != "" {
+		return d.CloneDir
+	}
+	return DefaultCloneDir
+}
+
+// NewClonePath is where a layer repository is cloned, as the manifest
+// stores it.
+func (d *Device) NewClonePath(layer string) string {
+	return strings.TrimSuffix(d.CloneRoot(), "/") + "/" + layer
+}
+
+// CheckCloneDir rejects a clone directory that cannot hold layer clones:
+// a relative path, which the SessionStart hook would resolve inside a
+// project, and anything inside ~/.claude, where a git repository pollutes
+// plugin versions (claude-code #80304).
+func CheckCloneDir(dir string) error {
+	if dir != "~" && !strings.HasPrefix(dir, "~/") && !filepath.IsAbs(dir) {
+		return fmt.Errorf("clone_dir %q: use an absolute path or one starting with ~/", dir)
+	}
+	claude := filepath.Clean(ExpandHome("~/.claude"))
+	full := filepath.Clean(ExpandHome(dir))
+	if full == claude || strings.HasPrefix(full, claude+string(filepath.Separator)) {
+		return fmt.Errorf("clone_dir %q is inside ~/.claude; git repositories there pollute plugin versions (claude-code #80304)", dir)
+	}
+	return nil
 }
 
 // ProfilePath returns the config directory for an overlay when profiles
@@ -145,6 +184,11 @@ func (d *Device) Validate() error {
 	case "", "en", "zh", "ja":
 	default:
 		return fmt.Errorf("lang %q: use en, zh or ja, or leave it out to follow the locale", d.Lang)
+	}
+	if d.CloneDir != "" {
+		if err := CheckCloneDir(d.CloneDir); err != nil {
+			return err
+		}
 	}
 	seen := map[string]bool{}
 	for _, l := range d.Layers {

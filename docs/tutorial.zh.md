@@ -29,7 +29,7 @@ cclayer 把配置分成两种「层」：
 
 - **层**：一个根目录带 `layer.toml` 的目录。可以是 git 仓库（cclayer clone 到本机），也可以就是本机的一个目录，比如网盘同步文件夹里的一个目录。
 - **设备清单**：`~/.config/cclayer/device.toml`，记这台机器启用了哪些层、层在本机哪里、项目在哪里找。只在本机，不进任何仓库。
-- **clone 目录**：git 层在本机的副本，默认 `~/.local/share/cclayer/<层名>`。目录层没有副本，就是那个目录本身。
+- **clone 目录**：git 层在本机的副本，默认 `~/.local/share/cclayer/<层名>`；setup 里「本机克隆位置」一行或设备清单的 `clone_dir` 可以换上级文件夹。目录层没有副本，就是那个目录本身。
 - **项目根目录（roots）**：cclayer 在这些目录下找 git 仓库，看它们的远程地址归哪个覆盖层。
 - **匹配**：覆盖层的 `[[match]] remote = "github.com/acme-inc/*"` 对上某个仓库的远程地址，这个仓库就归这个覆盖层。一个仓库最多归一个覆盖层。
 - **注入**：apply 把覆盖层 `project/` 下的内容写进匹配项目的 `.claude/settings.local.json` 和 `CLAUDE.local.md`。这两个文件会登记进全局 git 排除列表，不会被提交进项目。
@@ -166,12 +166,11 @@ cclayer setup
 ### 日常
 
 ```sh
-cclayer apply --pull         # 先把 clone 快进到远程最新，再铺到本机
-cclayer capture              # 本机改动写回 clone，不提交
-cd ~/.local/share/cclayer/base
-git diff                     # 看一下
-git add -A && git commit -m "..." && git push
+cclayer push                 # 上传：capture、列出要提交的内容、提交并推送
+cclayer apply --pull         # 下载：把各层克隆快进到最新，再铺到本机
 ```
+
+`push` 提交前会列出每个层的改动，问一次。别的机器在这期间推过新提交时，它把这台的提交接在后面；和别人的提交冲突时停下，克隆保持原样。`-m` 给所有层用同一条说明，想给每个层写不同的说明，就先 `cclayer capture`，再进各克隆目录自己提交。
 
 `capture` 故意不提交不推送，让你先看 diff。`status` 会显示每个 clone 有没有未提交的改动、比远程多几个提交。
 
@@ -330,6 +329,14 @@ cclayer capture [--add <相对 ~/.claude 的路径>]... [--from <项目目录>]
 apply 的反方向。本机 `~/.claude` 下、层管的那些路径里，和上次 apply 写的不一样的文件，写回所属层。只在本机有的新文件列出来不动，`--add` 收进去，可以写单个文件，也可以写目录（收进其下所有新文件）。`settings.json` 里 `settings_keys` 的键改过就写回。
 
 匹配项目里的 `.claude/settings.local.json` 和 `CLAUDE.local.md` 改了也写回覆盖层；几个项目改得不一致时拒绝，`--from` 指定以哪个项目为准。
+
+### push
+
+```sh
+cclayer push [--add <路径>]... [-m <说明>] [--yes]
+```
+
+先跑 capture（`--add` 同 capture），再对所有层跑一遍 `check`，因为克隆里可能有手动改的内容。列出每个层仓库的改动，问一次，用给定的说明或「cclayer: capture from <机器名>」提交，以 rebase 方式拉取后推送。已经提交但还没推送的提交也会一起推上去。和远程冲突时，那个层的 rebase 会撤销，并指出要在哪个克隆里手动合并；其他层照常推送。目录层跳过。
 
 每个文件先过 `check`，被拒的不写并报出原因。写完只是改了层目录里的文件，git 层要你自己提交推送。
 

@@ -255,3 +255,72 @@ func TestSetupCommitStarterFailsFirst(t *testing.T) {
 		t.Error("the base credential was dropped although the save failed")
 	}
 }
+
+// A new clone directory moves the clones cclayer made at the old place and
+// records it; a taken target or a place inside ~/.claude is refused before
+// anything moves.
+func TestSetupCloneDirMoves(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	old := filepath.Join(home, ".local", "share", "cclayer", "base")
+	os.MkdirAll(filepath.Join(old, ".git"), 0o755)
+	newDevice := func() *manifest.Device {
+		return &manifest.Device{Layers: []string{"base"}, Roots: []string{"~/Projects"},
+			Clone: map[string]string{"base": "~/.local/share/cclayer/base"},
+			Repo:  map[string]string{"base": "git@github.com:you/cclayer-base.git"}}
+	}
+
+	d := newDevice()
+	m := newUI(t, d, true)
+	if err := m.set("clonedir", "~/.claude/layers"); err == nil {
+		t.Error("a clone directory inside ~/.claude must be refused")
+	}
+	os.MkdirAll(filepath.Join(home, "Code", "cclayer", "base"), 0o755)
+	m.dr.cloneDir = "~/Code/cclayer"
+	if err := m.w.commit(d, m.dr); err == nil || !exists(old) {
+		t.Fatalf("a taken target must stop the save with the clone in place: %v", err)
+	}
+	os.Remove(filepath.Join(home, "Code", "cclayer", "base"))
+
+	d = newDevice()
+	m = newUI(t, d, true)
+	if err := m.set("clonedir", "~/Code/cclayer/"); err != nil {
+		t.Fatal(err)
+	}
+	m.focus, m.item = areaList, 0
+	for i, it := range m.items() {
+		if it.key == "clonedir" {
+			m.item = i
+		}
+	}
+	if _, _, _, note := m.detail(); !strings.Contains(note, "base") {
+		t.Errorf("the note should name the clone that moves: %q", note)
+	}
+	if err := m.w.commit(d, m.dr); err != nil {
+		t.Fatal(err)
+	}
+	if exists(old) || !exists(filepath.Join(home, "Code", "cclayer", "base", ".git")) {
+		t.Error("the clone did not move")
+	}
+	if d.Clone["base"] != "~/Code/cclayer/base" || d.CloneDir != "~/Code/cclayer" {
+		t.Errorf("manifest: clone=%q clone_dir=%q", d.Clone["base"], d.CloneDir)
+	}
+}
+
+// A layer the manifest lists but this device has not cloned yet follows a
+// new clone directory too, so the clone that comes later lands there.
+func TestSetupCloneDirUnclonedLayer(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	d := &manifest.Device{Layers: []string{"base"}, Roots: []string{"~/Projects"},
+		Clone: map[string]string{"base": "~/.local/share/cclayer/base"},
+		Repo:  map[string]string{"base": "git@github.com:you/cclayer-base.git"}}
+	m := newUI(t, d, true)
+	m.dr.cloneDir = "~/Code/cclayer"
+	if err := m.w.commit(d, m.dr); err != nil {
+		t.Fatal(err)
+	}
+	if d.Clone["base"] != "~/Code/cclayer/base" {
+		t.Errorf("an uncloned layer kept its old path: %q", d.Clone["base"])
+	}
+}

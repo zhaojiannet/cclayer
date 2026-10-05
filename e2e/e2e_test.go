@@ -482,14 +482,15 @@ func TestSetupAccessible(t *testing.T) {
 		"claude/CLAUDE.md": "# shared\n",
 	})
 	// accessible huh prompts read one line per field. The overview lists
-	// base layer, add an overlay, project dirs, auto pull, profiles,
-	// trusted layers, language, save, quit; a picked row returns to it.
+	// base layer, add an overlay, project dirs, local clones, auto pull,
+	// profiles, trusted layers, language, save, quit; a picked row returns
+	// to it.
 	answers := strings.Join([]string{
 		"1",  // base layer
 		base, // local bare repository: no credential question
 		"3",  // project dirs
 		filepath.Join(w.home, "Projects"),
-		"8", // save
+		"9", // save
 		"y", // apply now; doctor follows
 	}, "\n") + "\n"
 	out, code := w.run(answers, "setup", "--accessible")

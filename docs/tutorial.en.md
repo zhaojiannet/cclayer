@@ -29,7 +29,7 @@ Three typical setups:
 
 - **Layer**: a directory with a `layer.toml` at its root. It can be a git repository (cclayer clones it to the machine) or just a directory on this machine, for example a directory inside a cloud drive's sync folder.
 - **Device manifest**: `~/.config/cclayer/device.toml`. It records which layers this machine has enabled, where each layer lives on this machine and where to look for projects. It stays on this machine and never enters any repository.
-- **Clone directory**: the local copy of a git layer, by default `~/.local/share/cclayer/<layer>`. A directory layer has no copy; it is the directory itself.
+- **Clone directory**: the local copy of a git layer, by default `~/.local/share/cclayer/<layer>`; the Local clones row of setup, or `clone_dir` in the device manifest, picks another parent folder. A directory layer has no copy; it is the directory itself.
 - **Project roots**: cclayer looks for git repositories under these directories and checks which overlay their remote URLs belong to.
 - **Match**: when an overlay's `[[match]] remote = "github.com/acme-inc/*"` fits a repository's remote URL, that repository belongs to that overlay. A repository belongs to at most one overlay.
 - **Inject**: apply writes the contents of the overlay's `project/` into the matched project's `.claude/settings.local.json` and `CLAUDE.local.md`. These two files are registered in the global git exclude list and are not committed into the project.
@@ -166,12 +166,11 @@ Enter the repository URL as the base layer location, `https://github.com/you/ccl
 ### Daily use
 
 ```sh
-cclayer apply --pull         # fast-forward the clone to the remote first, then apply to this machine
-cclayer capture              # write local changes back to the clone, without committing
-cd ~/.local/share/cclayer/base
-git diff                     # take a look
-git add -A && git commit -m "..." && git push
+cclayer push                 # upload: capture, show what would be committed, commit and push
+cclayer apply --pull         # download: fast-forward the clones, then apply to this machine
 ```
+
+`push` lists each layer's changes and asks once before committing. When another machine pushed in the meantime it puts this commit on top of theirs; when their commits conflict with yours it stops and leaves the clone as it was. `-m` gives every layer the same message; to write a different one per layer, run `cclayer capture` and commit in each clone yourself.
 
 `capture` deliberately does not commit or push, so you can review the diff first. `status` shows whether each clone has uncommitted changes and how many commits it is ahead of the remote.
 
@@ -330,6 +329,14 @@ cclayer capture [--add <path relative to ~/.claude>]... [--from <project directo
 The reverse of apply. Among the paths the layer manages under this machine's `~/.claude`, files that differ from what the last apply wrote are written back to the owning layer. New files that exist only on this machine are listed and left alone; `--add` admits them, one file at a time or a whole directory (every new file below it). Keys of `settings.json` listed in `settings_keys` are written back when changed.
 
 `.claude/settings.local.json` and `CLAUDE.local.md` edited inside matched projects are written back to the overlay too; when several projects were changed inconsistently it refuses, and `--from` names the project to take.
+
+### push
+
+```sh
+cclayer push [--add <path>]... [-m <message>] [--yes]
+```
+
+Runs capture (with the same `--add`), then `check` over every layer, since a clone may hold edits made by hand. Lists the changes of every layer repository, asks once, commits with the message given or "cclayer: capture from <host>", pulls with rebase and pushes. Commits already made but not pushed go out too. A conflict with the remote aborts the rebase for that layer and names the clone to merge in; the other layers still go. Directory layers are skipped.
 
 Every file passes `check` first; refused files are not written and the reason is reported. Writing only changes the files in the layer directory; for a git layer you commit and push yourself.
 
