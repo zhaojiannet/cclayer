@@ -261,7 +261,7 @@ func TestSetupCommitStarterFailsFirst(t *testing.T) {
 // anything moves.
 func TestSetupCloneDirMoves(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	old := filepath.Join(home, ".local", "share", "cclayer", "base")
 	os.MkdirAll(filepath.Join(old, ".git"), 0o755)
 	newDevice := func() *manifest.Device {
@@ -311,7 +311,7 @@ func TestSetupCloneDirMoves(t *testing.T) {
 // new clone directory too, so the clone that comes later lands there.
 func TestSetupCloneDirUnclonedLayer(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	d := &manifest.Device{Layers: []string{"base"}, Roots: []string{"~/Projects"},
 		Clone: map[string]string{"base": "~/.local/share/cclayer/base"},
 		Repo:  map[string]string{"base": "git@github.com:you/cclayer-base.git"}}
@@ -323,4 +323,11 @@ func TestSetupCloneDirUnclonedLayer(t *testing.T) {
 	if d.Clone["base"] != "~/Code/cclayer/base" {
 		t.Errorf("an uncloned layer kept its old path: %q", d.Clone["base"])
 	}
+}
+
+// setHome points the home directory at dir: os.UserHomeDir reads HOME on
+// Unix and USERPROFILE on Windows.
+func setHome(t *testing.T, dir string) {
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
 }
